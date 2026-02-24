@@ -1,97 +1,64 @@
-# 🏥 MedConnect Edge - AI Medical Assistant
+# 🏥 MedConnect Edge v2.0 - Offline Multimodal Medical Triage
 
-**Lightweight AI-powered medical triage system optimized for edge devices**
+**An ultra-lightweight, offline-first multimodal AI triage system optimized for extreme edge devices and remote clinics (*Puskesmas Terpencil*).**
 
-> 🎯 Kaggle Challenge: HAI-DEF Foundation Models  
-> 📱 Target: CLI + Android deployment  
-> 🤖 Model: MedGemma (Google's medical LLM)
+> 🏆 **Submitted for:** 2026 Kaggle MedGemma Impact Challenge (The Edge AI Prize)  
+> 🎥 **Video Demo:** [Watch the 3-Minute Demo on YouTube](https://youtu.be/FmhcWjZVyv8)  
+> 🧠 **Core Models:** MedGemma-2B (Logic/RAG) + BakLLaVA (Vision)  
+> 💻 **Hardware Requirement:** Runs smoothly on **~2.4 GB of RAM** entirely offline.
+
+---
+
+## ✨ Key Features
+
+1. **Split-Brain Multimodal AI:** Combines visual analysis for skin conditions/wounds (via BakLLaVA) with NLP symptom triage (via MedGemma-2B).
+2. **100% Offline RAG Pipeline:**  Retrieves official Indonesian Ministry of Health guidelines locally using ChromaDB, ensuring advice is medically aligned without needing internet access.
+3. **Extreme Edge Optimization:** Utilizes aggressive 4-bit quantization (GGUF `Q4_K_M`) via `llama.cpp` to run on severely constrained hardware.
+4. **Interactive Web UI:** Clean, human-centered Streamlit interface designed for fast data entry by frontline health workers.
 
 ---
 
 ## 🚀 Quick Start
 
-### Run Baseline Triage CLI
+### 1. Run the Web App (Streamlit)
+To launch the full interactive multimodal UI:
 ```bash
-./run.sh python src/inference/triage_cli.py \
-  --symptoms "demam 4 hari, sakit kepala, nyeri otot, bintik merah"
-```
+./run.sh streamlit run app.py
 
-**Output:**
-```json
-{
-  "triage_level": "URGENT",
-  "note": "Curiga infeksi (mis. dengue/DBD) butuh evaluasi.",
-  "disclaimer": "Ini bukan diagnosis medis. Konsultasi dokter."
-}
-```
+The app will be available at http://localhost:8501
+2. Run Headless / CLI Tools
 
----
+You can still run individual modules via CLI for testing:
+Bash
 
-## 📁 Project Structure
-```
+# Test Vision AI
+./run.sh python src/inference/medvision_analyze.py --image temp_images/luka.jpeg
+
+# Test Text Triage
+./run.sh python src/inference/triage_cli.py --symptoms "demam 4 hari dan bintik merah"
+
+📁 Project Structure
+
 MedConnect_Edge/
-├── datasets/
-│   ├── raw/MedQA/        # Medical QA dataset
-│   ├── processed/        # Preprocessed data
-│   └── metadata.json     # Dataset info
+├── app.py                      # Main Streamlit Web Application
+├── data/
+│   ├── guidelines/             # Medical PDFs (Kemenkes)
+│   └── vectorstore/            # ChromaDB offline RAG database
+├── models/
+│   └── gguf/                   # Quantized models (MedGemma & BakLLaVA)
 ├── src/
-│   └── inference/        # Inference scripts
-│       ├── triage_cli.py         # Baseline triage
-│       └── medgemma_explain.py   # AI explainer
-├── models/               # Model checkpoints & exports
-├── scripts/              # Utility scripts
-├── run.sh                # Convenience wrapper
-└── requirements.txt      # Python dependencies
-```
+│   ├── inference/              # Inference scripts
+│   │   ├── medvision_analyze.py # Vision AI logic
+│   │   ├── triage_cli.py        # NLP triage logic
+│   │   └── medgemma_explain.py  # Final RAG explanation generator
+│   └── rag/
+│       └── build_knowledge.py   # RAG vector database builder
+├── run.sh                      # Environment execution wrapper
+└── requirements.txt            # Python dependencies
 
----
+⚠️ Disclaimer
 
-## 🛠️ Development
+CRITICAL: This software provides AI-generated output for decision-support purposes only. It is NOT a replacement for professional medical diagnosis. Always consult a certified human doctor.
+👨‍💻 Author
 
-### Without venv activation (Recommended):
-```bash
-./run.sh python script.py
-./run.sh pip install package
-```
-
-### With venv:
-```bash
-source venv/bin/activate
-python script.py
-```
-
----
-
-## 📊 Datasets
-
-- **MedQA**: Medical Question Answering
-- **Path**: `datasets/raw/MedQA/`
-- **Status**: ✅ Downloaded
-
-View info: `cat datasets/metadata.json`
-
----
-
-## 🤖 Models
-
-- **Current**: MedGemma 1.5-4B-IT
-- **Status**: ⚠️ Quantization needed for 8GB RAM
-
----
-
-## 📈 Progress
-
-- [x] Project setup
-- [x] Baseline triage CLI
-- [x] Dataset download
-- [ ] MedGemma quantization
-- [ ] Fine-tuning pipeline
-- [ ] Android app
-
----
-
-## 👨‍💻 Author
-
-**Alif Fauzan**  
-GitHub: [@AlifFauzan21](https://github.com/AlifFauzan21)
-
+Alif Fauzan Lead Developer & Edge AI Engineer GitHub: @AlifFauzan21
