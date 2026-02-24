@@ -1,0 +1,296 @@
+#!/usr/bin/env python3
+"""
+MedConnect Edge - AI Medical Explainer
+Uses Google AI Studio API with Gemini (HAI-DEF family)
+"""
+
+import argparse
+import json
+import sys
+import os
+
+try:
+    import google.generativeai as genai
+except ImportError:
+    print("❌ Error: google-generativeai not installed")
+    print("Run: ./run.sh pip install google-generativeai")
+    sys.exit(1)
+
+class MedGemmaExplainer:
+    """Medical explanation using Google AI Studio"""
+    
+    def __init__(self, api_key: str = None):
+        """Initialize with Google AI Studio API"""
+        
+        if api_key is None:
+            api_key = os.getenv("GOOGLE_API_KEY")
+        
+        if not api_key:
+            raise ValueError(
+                "Google API key required!\n"
+                "Set: export GOOGLE_API_KEY='your_key'\n"
+                "Or pass: --api-key argument"
+            )
+        
+        # Configure Google AI
+        genai.configure(api_key=api_key)
+        
+        # Use Gemini 1.5 Flash (free tier, medically capable)
+        # Note: Direct MedGemma may require special access
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model_name = "gemini-1.5-flash (Google AI)"
+        
+        print(f"🌐 Using Google AI model: {self.model_name}")
+        print("✅ Connected to Google AI Studio!\n")
+    
+    def create_medical_prompt(self, symptoms: str, triage_level: str, triage_note: str) -> str:
+        """Create medical explanation prompt"""
+        
+        prompt = f"""You are a medical AI assistant helping explain triage results to patients.
+
+PATIENT INFORMATION:
+- Reported Symptoms: {symptoms}
+- Triage Assessment: {triage_level}
+- Clinical Note: {triage_note}
+
+TASK:
+Provide a clear, empathetic medical explanation in under 200 words that includes:
+
+1. **What this triage level means**: Explain the urgency level in plain language
+2. **Why these symptoms warrant this assessment**: Connect symptoms to the triage decision
+3. **Recommended next steps**: What should the patient do immediately
+4. **Warning signs to monitor**: Symptoms that require emergency care
+5. **Medical disclaimer**: Remind this is not a diagnosis
+
+IMPORTANT:
+- Use simple, non-technical language
+- Be empathetic and supportive
+- Focus on actionable advice
+- Include appropriate urgency without causing panic
+- End with clear disclaimer about seeking professional care
+
+Response:"""
+        
+        return prompt
+    
+    def explain(self, symptoms: str, triage_level: str, triage_note: str) -> dict:
+        """Generate medical explanation using Google AI"""
+        
+        print("🤖 Generating AI medical explanation...")
+        print("-" * 60)
+        
+        try:
+            # Create prompt
+            prompt = self.create_medical_prompt(symptoms, triage_level, triage_note)
+            
+            # Generate response
+            response = self.model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.7,
+                    top_p=0.9,
+                    top_k=40,
+                    max_output_tokens=500,
+                )
+            )
+            
+            # Extract text
+            explanation = response.text.strip()
+            
+            return {
+                "symptoms": symptoms,
+                "triage_level": triage_level,
+                "triage_note": triage_note,
+                "ai_explanation": explanation,
+                "model": self.model_name,
+                "method": "google_ai",
+                "status": "success",
+                "tokens_used": response.usage_metadata.total_token_count if hasattr(response, 'usage_metadata') else None
+            }
+            
+        except Exception as e:
+            print(f"⚠️ API Error: {str(e)}")
+            print("🔄 Using fallback explanation...")
+            return self.generate_fallback(symptoms, triage_level, triage_note, str(e))
+    
+    def generate_fallback(self, symptoms: str, triage_level: str, 
+                         triage_note: str, error: str) -> dict:
+        """Generate rule-based fallback explanation"""
+        
+        if triage_level == "URGENT":
+            explanation = f"""**URGENT Medical Attention Required**
+
+Your symptoms ({symptoms}) indicate a condition requiring prompt medical evaluation within 24 hours.
+
+**Why This is Urgent:**
+{triage_note}
+
+**Immediate Actions:**
+1. Contact your healthcare provider today
+2. Visit urgent care or emergency department
+3. Do not wait for symptoms to worsen
+
+**Warning Signs - Seek Emergency Care if:**
+- Symptoms suddenly worsen
+- Difficulty breathing or chest pain
+- High fever (>39°C/102°F)
+- Severe pain or weakness
+- Confusion or altered consciousness
+
+**Important:** This assessment is based on reported symptoms only. A healthcare professional must evaluate you in person for proper diagnosis and treatment."""
+
+        elif triage_level == "EMERGENCY":
+            explanation = f"""**EMERGENCY - IMMEDIATE ACTION REQUIRED**
+
+Your symptoms ({symptoms}) suggest a potentially life-threatening condition.
+
+**Critical Warning:**
+{triage_note}
+
+**URGENT ACTIONS:**
+1. Call emergency services (112/119) NOW
+2. Go to nearest emergency department immediately
+3. Do not drive yourself - get help
+4. If unconscious/severe distress: Call ambulance
+
+**This is a medical emergency. Professional medical care is required immediately.**"""
+
+        else:  # NON-URGENT
+            explanation = f"""**Routine Medical Attention Recommended**
+
+Your symptoms ({symptoms}) suggest a condition manageable with routine medical care.
+
+**Assessment:**
+{triage_note}
+
+**Recommended Actions:**
+1. Monitor symptoms for 24-48 hours
+2. Schedule appointment with healthcare provider
+3. Manage symptoms with home care
+4. Maintain hydration and rest
+
+**When to Seek Urgent Care:**
+- Symptoms worsen significantly
+- New severe symptoms develop
+- Fever above 39°C (102°F)
+- Symptoms persist beyond 1 week
+
+**Note:** While not immediately urgent, proper medical evaluation is recommended for accurate diagnosis and treatment."""
+
+        return {
+            "symptoms": symptoms,
+            "triage_level": triage_level,
+            "triage_note": triage_note,
+            "ai_explanation": explanation.strip(),
+            "model": "rule-based-fallback",
+            "method": "fallback",
+            "status": "fallback",
+            "error": error
+        }
+    
+    def format_output(self, result: dict) -> str:
+        """Format result for display"""
+        
+        status_emoji = "✅" if result.get("status") == "success" else "⚠️"
+        
+        output = f"""
+{'='*60}
+🏥 MEDCONNECT EDGE - AI MEDICAL EXPLANATION
+{'='*60}
+
+📝 Patient Symptoms:
+{result['symptoms']}
+
+🚨 Triage Assessment: {result['triage_level']}
+
+💡 AI Medical Explanation:
+{result['ai_explanation']}
+
+{'='*60}
+⚠️ CRITICAL MEDICAL DISCLAIMER:
+This system provides AI-assisted information only and is NOT
+a substitute for professional medical diagnosis or treatment.
+
+ALWAYS consult a qualified healthcare professional for:
+- Accurate diagnosis
+- Treatment recommendations  
+- Medical emergencies
+- Any health concerns
+{'='*60}
+
+{status_emoji} AI Model: {result.get('model', 'N/A')}
+🔧 Method: {result.get('method', 'N/A')}
+"""
+        
+        if result.get('tokens_used'):
+            output += f"📊 Tokens: {result['tokens_used']}\n"
+        
+        if result.get('status') == 'fallback':
+            output += f"\n⚠️ Note: Using fallback (API issue: {result.get('error', 'unknown')})\n"
+        
+        return output
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="MedConnect Edge - Google AI Medical Explainer"
+    )
+    parser.add_argument(
+        "--symptoms",
+        type=str,
+        required=True,
+        help="Patient symptoms"
+    )
+    parser.add_argument(
+        "--triage-level",
+        type=str,
+        required=True,
+        choices=["URGENT", "NON-URGENT", "EMERGENCY"],
+        help="Triage assessment level"
+    )
+    parser.add_argument(
+        "--triage-note",
+        type=str,
+        required=True,
+        help="Triage assessment note"
+    )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="Google API key (or set GOOGLE_API_KEY env)"
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON"
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        # Initialize explainer
+        explainer = MedGemmaExplainer(api_key=args.api_key)
+        
+        # Generate explanation
+        result = explainer.explain(
+            symptoms=args.symptoms,
+            triage_level=args.triage_level,
+            triage_note=args.triage_note
+        )
+        
+        # Output
+        if args.json:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            print(explainer.format_output(result))
+        
+        return 0
+        
+    except Exception as e:
+        print(f"❌ Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
